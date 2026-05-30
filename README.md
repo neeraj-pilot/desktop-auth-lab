@@ -43,19 +43,18 @@ dart run tool/host_diagnostics.dart
 The desktop workflow builds unsigned artifacts:
 
 - `desktop-auth-lab-linux`: Linux release tarball, `ldd`, diagnostics.
-- `desktop-auth-lab-flatpak`: Flatpak bundle plus the Flatpak test kit.
+- `desktop-auth-lab-flatpak`: standalone Flatpak bundle plus a single Flatpak
+  test archive.
 - `desktop-auth-lab-windows`: Windows release folder.
 - `desktop-auth-lab-macos`: zipped macOS `.app`.
 
 Release assets use direct download names:
 
 - `desktop-auth-lab-linux-x64.tar.gz`
-- `desktop-auth-lab.flatpak`
-- `desktop-auth-lab-flatpak-test-kit.tar.gz`
+- `desktop-auth-lab-flatpak-test.tar.gz`
+- `desktop-auth-lab.flatpak` for standalone Flatpak bundle testing
 - `desktop-auth-lab-windows-x64.zip`
 - `desktop-auth-lab-macos.zip`
-- `io.ente.auth.policy`
-- `install-polkit-policy.sh`
 - `desktop-auth-lab-sha256.txt`
 
 ## Flatpak Testing

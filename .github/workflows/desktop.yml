@@ -103,18 +103,23 @@ jobs:
           mkdir -p artifacts/flatpak-test-kit
           cp -R flatpak/. artifacts/flatpak-test-kit/
           cp assets/polkit/io.ente.auth.policy artifacts/flatpak-test-kit/io.ente.auth.policy
-          cp assets/polkit/io.ente.auth.policy artifacts/io.ente.auth.policy
-          cp flatpak/install-polkit-policy.sh artifacts/install-polkit-policy.sh
-          tar -C artifacts -czf artifacts/desktop-auth-lab-flatpak-test-kit.tar.gz flatpak-test-kit
+          mkdir -p artifacts/desktop-auth-lab-flatpak-test
+          cp artifacts/desktop-auth-lab.flatpak artifacts/desktop-auth-lab-flatpak-test/
+          cp flatpak/README.md artifacts/desktop-auth-lab-flatpak-test/README.md
+          cp flatpak/install-polkit-policy.sh artifacts/desktop-auth-lab-flatpak-test/
+          cp flatpak/uninstall-polkit-policy.sh artifacts/desktop-auth-lab-flatpak-test/
+          cp assets/polkit/io.ente.auth.policy artifacts/desktop-auth-lab-flatpak-test/
+          cp flatpak/io.ente.authlab.yml artifacts/desktop-auth-lab-flatpak-test/
+          cp flatpak/io.ente.authlab.desktop artifacts/desktop-auth-lab-flatpak-test/
+          cp flatpak/io.ente.authlab.metainfo.xml artifacts/desktop-auth-lab-flatpak-test/
+          tar -C artifacts -czf artifacts/desktop-auth-lab-flatpak-test.tar.gz desktop-auth-lab-flatpak-test
 
       - name: Capture Linux checksums
         run: |
           sha256sum \
             artifacts/desktop-auth-lab-linux-x64.tar.gz \
             artifacts/desktop-auth-lab.flatpak \
-            artifacts/desktop-auth-lab-flatpak-test-kit.tar.gz \
-            artifacts/io.ente.auth.policy \
-            artifacts/install-polkit-policy.sh \
+            artifacts/desktop-auth-lab-flatpak-test.tar.gz \
             > artifacts/desktop-auth-lab-sha256.txt
 
       - name: Upload Linux artifacts
@@ -133,10 +138,9 @@ jobs:
           name: desktop-auth-lab-flatpak
           path: |
             artifacts/desktop-auth-lab.flatpak
-            artifacts/desktop-auth-lab-flatpak-test-kit.tar.gz
+            artifacts/desktop-auth-lab-flatpak-test.tar.gz
+            artifacts/desktop-auth-lab-flatpak-test
             artifacts/flatpak-test-kit
-            artifacts/io.ente.auth.policy
-            artifacts/install-polkit-policy.sh
 
   windows:
     name: Windows

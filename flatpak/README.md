@@ -12,14 +12,15 @@ setup behavior.
 
 ## Install From a GitHub Release
 
-Download these assets from the latest GitHub release:
+For Flatpak testing, download one asset from the latest GitHub release:
 
-- `desktop-auth-lab.flatpak`
-- `desktop-auth-lab-flatpak-test-kit.tar.gz`
+- `desktop-auth-lab-flatpak-test.tar.gz`
 
 Then install the app:
 
 ```sh
+tar -xzf desktop-auth-lab-flatpak-test.tar.gz
+cd desktop-auth-lab-flatpak-test
 flatpak install --user ./desktop-auth-lab.flatpak
 flatpak run io.ente.authlab
 ```
@@ -28,8 +29,7 @@ If the Run tab shows `Polkit policy: setup required`, install the host policy
 from the test kit:
 
 ```sh
-tar -xzf desktop-auth-lab-flatpak-test-kit.tar.gz
-./flatpak-test-kit/install-polkit-policy.sh
+./install-polkit-policy.sh
 ```
 
 Run the lab again:
@@ -49,9 +49,9 @@ if command -v chcon >/dev/null 2>&1; then sudo chcon system_u:object_r:usr_t:s0 
 pkaction --action-id io.ente.auth.unlock --verbose
 ```
 
-The release also attaches `io.ente.auth.policy` and
-`install-polkit-policy.sh` directly for testers who only want the policy setup
-files.
+The release may also attach `desktop-auth-lab.flatpak` as a standalone bundle,
+but that is not the recommended tester path because the host policy installer is
+not included next to it.
 
 ## Before Flathub Publish
 
@@ -79,6 +79,6 @@ flatpak build-bundle build/flatpak-repo build/desktop-auth-lab.flatpak io.ente.a
 Only remove the host policy if you installed it solely for this lab:
 
 ```sh
-./flatpak-test-kit/uninstall-polkit-policy.sh
+./uninstall-polkit-policy.sh
 flatpak uninstall --user io.ente.authlab
 ```

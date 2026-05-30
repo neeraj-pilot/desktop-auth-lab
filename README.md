@@ -67,5 +67,6 @@ harder for testers to run correctly and do not exercise installer assumptions.
 ## Flatpak Testing
 
 See [flatpak/README.md](flatpak/README.md). The Flatpak artifact includes the
-manifest, launcher, policy asset, install script, cleanup script, and guide
-needed to test the Polkit host-policy setup path.
+manifest, launcher, policy asset, install script, cleanup script, and guide.
+The guide installs the host Polkit policy directly from a pinned GitHub URL, so
+users do not need to unpack the test archive just to register the policy.

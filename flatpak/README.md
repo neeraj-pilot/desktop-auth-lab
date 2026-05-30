@@ -21,7 +21,7 @@ Then install the Flatpak:
 
 ```sh
 curl -L -o desktop-auth-lab-flatpak-test.tar.gz \
-  https://github.com/neeraj-pilot/desktop-auth-lab/releases/download/v0.2.1/desktop-auth-lab-flatpak-test.tar.gz
+  https://github.com/neeraj-pilot/desktop-auth-lab/releases/download/v0.2.2/desktop-auth-lab-flatpak-test.tar.gz
 
 tar -xzf desktop-auth-lab-flatpak-test.tar.gz
 cd desktop-auth-lab-flatpak-test
@@ -36,7 +36,7 @@ directly from GitHub:
 tmp="$(mktemp)"
 
 curl -fsSL \
-  https://raw.githubusercontent.com/neeraj-pilot/desktop-auth-lab/v0.2.1/assets/polkit/io.ente.auth.policy \
+  https://raw.githubusercontent.com/neeraj-pilot/desktop-auth-lab/v0.2.2/assets/polkit/io.ente.auth.policy \
   -o "$tmp"
 
 sudo install -D -o root -g root -m 0644 \
@@ -58,6 +58,25 @@ Run the lab again:
 ```sh
 flatpak run io.ente.authlab
 ```
+
+## Ubuntu Fingerprint Setup
+
+The policy above only registers the app action. Password vs fingerprint is
+controlled by the host Polkit/PAM setup.
+
+On Ubuntu, if authentication works with password but does not prompt for
+fingerprint:
+
+```sh
+fprintd-list "$USER"
+sudo apt install fprintd libpam-fprintd
+sudo pam-auth-update
+grep -n "pam_fprintd" /etc/pam.d/common-auth
+cat /etc/pam.d/polkit-1
+```
+
+Enable **Fingerprint authentication** in `pam-auth-update`. Polkit should route
+through `common-auth`; otherwise `/etc/pam.d/polkit-1` may remain password-only.
 
 ## Install Policy Manually
 

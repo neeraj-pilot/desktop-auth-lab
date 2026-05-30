@@ -472,9 +472,13 @@ class _RunTab extends StatelessWidget {
               icon: Icons.verified_user,
             ),
             _StatusTile(
-              label: 'Biometrics',
-              value: status['canCheckBiometrics']?.toString() ?? 'pending',
-              icon: Icons.fingerprint,
+              label: Platform.isLinux ? 'Auth backend' : 'Biometrics',
+              value: Platform.isLinux
+                  ? 'Polkit/PAM'
+                  : status['canCheckBiometrics']?.toString() ?? 'pending',
+              icon: Platform.isLinux
+                  ? Icons.admin_panel_settings
+                  : Icons.fingerprint,
             ),
             if (linuxSetup != null)
               _StatusTile(

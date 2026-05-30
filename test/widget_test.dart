@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:desktop_auth_lab/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +15,9 @@ void main() {
     expect(find.text('Diagnostics'), findsOneWidget);
     expect(find.text('Logs'), findsOneWidget);
     expect(find.text('Check support'), findsOneWidget);
-    expect(find.byIcon(Icons.fingerprint), findsWidgets);
+    expect(
+      find.text(Platform.isLinux ? 'Auth backend' : 'Biometrics'),
+      findsOneWidget,
+    );
   });
 }

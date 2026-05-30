@@ -70,3 +70,11 @@ See [flatpak/README.md](flatpak/README.md). The Flatpak artifact includes the
 manifest, launcher, policy asset, install script, cleanup script, and guide.
 The guide installs the host Polkit policy directly from a pinned GitHub URL, so
 users do not need to unpack the test archive just to register the policy.
+
+## Linux Fingerprint Notes
+
+The Linux backend uses Polkit/PAM. `canCheckBiometrics=false` and an empty
+`availableBiometrics` list are expected because the app does not enumerate
+fingerprint hardware directly. The app-level readiness signal is
+`Device support=true` plus `Polkit policy=installed`; fingerprint availability
+depends on the host `fprintd` and PAM configuration.

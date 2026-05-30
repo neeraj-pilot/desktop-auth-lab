@@ -40,22 +40,29 @@ dart run tool/host_diagnostics.dart
 
 ## CI Artifacts
 
-The desktop workflow builds unsigned artifacts:
+The desktop workflow builds unsigned tester artifacts:
 
-- `desktop-auth-lab-linux`: Linux release tarball, `ldd`, diagnostics.
-- `desktop-auth-lab-flatpak`: standalone Flatpak bundle plus a single Flatpak
-  test archive.
-- `desktop-auth-lab-windows`: Windows release folder.
-- `desktop-auth-lab-macos`: zipped macOS `.app`.
+- `desktop-auth-lab-linux-packages`: native Linux AppImage, deb, rpm, and
+  checksums.
+- `desktop-auth-lab-flatpak-test`: one Flatpak test archive containing the
+  Flatpak bundle, Polkit policy, install/cleanup scripts, manifest, and guide.
+- `desktop-auth-lab-windows`: unsigned Windows installer exe and checksum.
+- `desktop-auth-lab-macos`: unsigned macOS dmg and checksum.
+- `desktop-auth-lab-linux-diagnostics`: Linux `ldd` and host diagnostics for CI
+  debugging only.
 
 Release assets use direct download names:
 
-- `desktop-auth-lab-linux-x64.tar.gz`
+- `desktop-auth-lab-<version>-x86_64.AppImage`
+- `desktop-auth-lab-<version>-amd64.deb`
+- `desktop-auth-lab-<version>-1.x86_64.rpm`
 - `desktop-auth-lab-flatpak-test.tar.gz`
-- `desktop-auth-lab.flatpak` for standalone Flatpak bundle testing
-- `desktop-auth-lab-windows-x64.zip`
-- `desktop-auth-lab-macos.zip`
+- `desktop-auth-lab-windows-x64-installer.exe`
+- `desktop-auth-lab-macos.dmg`
 - `desktop-auth-lab-sha256.txt`
+
+The raw Flutter build folders are intentionally not release assets. They are
+harder for testers to run correctly and do not exercise installer assumptions.
 
 ## Flatpak Testing
 

@@ -19,6 +19,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.38.10"
+  ARTIFACT_STEM: desktop-auth-lab
 
 jobs:
   linux:
@@ -41,6 +42,7 @@ jobs:
           sudo apt-get install -y \
             clang \
             cmake \
+            dpkg-dev \
             flatpak \
             flatpak-builder \
             libarchive-tools \
@@ -61,6 +63,13 @@ jobs:
             rpm \
             xz-utils
           sudo updatedb --localpaths='/usr/lib/x86_64-linux-gnu'
+
+      - name: Install Linux packagers
+        run: |
+          sudo gem install fpm
+          wget -O appimagetool "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          sudo mv appimagetool /usr/local/bin/appimagetool
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
@@ -91,8 +100,8 @@ jobs:
       - name: Capture Linux linkage
         run: ldd build/linux/x64/release/bundle/desktop_auth_lab > artifacts/ldd.txt
 
-      - name: Package Linux bundle
-        run: tar -C build/linux/x64/release -czf artifacts/desktop-auth-lab-linux-x64.tar.gz bundle
+      - name: Package native Linux builds
+        run: ./linux/packaging/package_linux.sh
 
       - name: Build Flatpak bundle
         run: |
@@ -114,33 +123,39 @@ jobs:
           cp flatpak/io.ente.authlab.metainfo.xml artifacts/desktop-auth-lab-flatpak-test/
           tar -C artifacts -czf artifacts/desktop-auth-lab-flatpak-test.tar.gz desktop-auth-lab-flatpak-test
 
-      - name: Capture Linux checksums
+      - name: Capture release checksums
         run: |
-          sha256sum \
-            artifacts/desktop-auth-lab-linux-x64.tar.gz \
-            artifacts/desktop-auth-lab.flatpak \
-            artifacts/desktop-auth-lab-flatpak-test.tar.gz \
-            > artifacts/desktop-auth-lab-sha256.txt
+          find artifacts -maxdepth 1 -type f \
+            \( -name "${ARTIFACT_STEM}-*.AppImage" -o \
+               -name "${ARTIFACT_STEM}-*.deb" -o \
+               -name "${ARTIFACT_STEM}-*.rpm" -o \
+               -name "${ARTIFACT_STEM}-flatpak-test.tar.gz" \) \
+            -print0 | sort -z | xargs -0 sha256sum > artifacts/${ARTIFACT_STEM}-sha256.txt
 
-      - name: Upload Linux artifacts
+      - name: Upload Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-auth-lab-linux
+          name: desktop-auth-lab-linux-packages
           path: |
-            artifacts/desktop-auth-lab-linux-x64.tar.gz
-            artifacts/host_diagnostics.json
-            artifacts/ldd.txt
+            artifacts/desktop-auth-lab-*.AppImage
+            artifacts/desktop-auth-lab-*.deb
+            artifacts/desktop-auth-lab-*.rpm
             artifacts/desktop-auth-lab-sha256.txt
 
-      - name: Upload Flatpak artifacts
+      - name: Upload Linux diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-auth-lab-flatpak
+          name: desktop-auth-lab-linux-diagnostics
           path: |
-            artifacts/desktop-auth-lab.flatpak
+            artifacts/host_diagnostics.json
+            artifacts/ldd.txt
+
+      - name: Upload Flatpak test kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-auth-lab-flatpak-test
+          path: |
             artifacts/desktop-auth-lab-flatpak-test.tar.gz
-            artifacts/desktop-auth-lab-flatpak-test
-            artifacts/flatpak-test-kit
 
   windows:
     name: Windows
@@ -165,18 +180,27 @@ jobs:
           flutter test
 
       - name: Build Windows release
-        run: flutter build windows --release
+        run: |
+          choco install innosetup -y
+          flutter build windows --release
 
-      - name: Package Windows app
+      - name: Package Windows installer
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath artifacts/desktop-auth-lab-windows-x64.zip -Force
+          & ./scripts/build_windows_installer.ps1 `
+            -SourceDir "build/windows/x64/runner/Release" `
+            -InstallerPath "artifacts/${{ env.ARTIFACT_STEM }}-windows-x64-installer.exe"
+          $hash = Get-FileHash "artifacts/${{ env.ARTIFACT_STEM }}-windows-x64-installer.exe" -Algorithm SHA256
+          "$($hash.Hash.ToLower())  ${{ env.ARTIFACT_STEM }}-windows-x64-installer.exe" | Out-File -FilePath "artifacts/${{ env.ARTIFACT_STEM }}-windows-sha256.txt" -Encoding ascii
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-auth-lab-windows
-          path: artifacts/desktop-auth-lab-windows-x64.zip
+          path: |
+            artifacts/desktop-auth-lab-windows-x64-installer.exe
+            artifacts/desktop-auth-lab-windows-sha256.txt
 
   macos:
     name: macOS
@@ -203,13 +227,20 @@ jobs:
       - name: Build macOS release
         run: flutter build macos --release
 
-      - name: Package macOS app
+      - name: Package macOS DMG
         run: |
           mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/desktop_auth_lab.app artifacts/desktop-auth-lab-macos.zip
+          rm -rf build/dmg-root
+          mkdir -p build/dmg-root
+          cp -R build/macos/Build/Products/Release/desktop_auth_lab.app "build/dmg-root/Desktop Auth Lab.app"
+          ln -s /Applications "build/dmg-root/Applications"
+          hdiutil create -volname "Desktop Auth Lab" -srcfolder build/dmg-root -ov -format UDZO "artifacts/${ARTIFACT_STEM}-macos.dmg"
+          shasum -a 256 "artifacts/${ARTIFACT_STEM}-macos.dmg" > "artifacts/${ARTIFACT_STEM}-macos-sha256.txt"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: desktop-auth-lab-macos
-          path: artifacts/desktop-auth-lab-macos.zip
+          path: |
+            artifacts/desktop-auth-lab-macos.dmg
+            artifacts/desktop-auth-lab-macos-sha256.txt

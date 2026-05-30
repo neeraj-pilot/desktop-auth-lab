@@ -47,8 +47,19 @@ The desktop workflow builds unsigned artifacts:
 - `desktop-auth-lab-windows`: Windows release folder.
 - `desktop-auth-lab-macos`: zipped macOS `.app`.
 
+Release assets use direct download names:
+
+- `desktop-auth-lab-linux-x64.tar.gz`
+- `desktop-auth-lab.flatpak`
+- `desktop-auth-lab-flatpak-test-kit.tar.gz`
+- `desktop-auth-lab-windows-x64.zip`
+- `desktop-auth-lab-macos.zip`
+- `io.ente.auth.policy`
+- `install-polkit-policy.sh`
+- `desktop-auth-lab-sha256.txt`
+
 ## Flatpak Testing
 
 See [flatpak/README.md](flatpak/README.md). The Flatpak artifact includes the
-manifest, launcher, policy asset, and install guide needed to test the Polkit
-host-policy setup path.
+manifest, launcher, policy asset, install script, cleanup script, and guide
+needed to test the Polkit host-policy setup path.

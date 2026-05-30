@@ -75,16 +75,6 @@ The test archive also includes `install-polkit-policy.sh`, but the direct GitHub
 download above is the recommended path because it is easier to paste into issue
 comments.
 
-## Before Flathub Publish
-
-This flow does not need a Flathub listing. A GitHub release asset is enough for
-testing the Flatpak bundle and the host policy registration path.
-
-After an Ente Auth Flathub package exists, the same host policy still has to be
-installed somewhere under the host Polkit policy search path. The published app
-can make the bundled-policy path more predictable, but it cannot silently write
-to `/usr/share/polkit-1/actions` from inside the sandbox.
-
 ## Manual Build From a Linux Bundle
 
 From the repository root, after `flutter build linux --release`:

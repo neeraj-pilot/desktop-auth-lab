@@ -1,0 +1,27 @@
+app-id: io.ente.authlab
+runtime: org.gnome.Platform
+runtime-version: "46"
+sdk: org.gnome.Sdk
+command: desktop_auth_lab
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --talk-name=org.freedesktop.PolicyKit1
+modules:
+  - name: desktop-auth-lab
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 flatpak/desktop_auth_lab.sh /app/bin/desktop_auth_lab
+      - mkdir -p /app/share/enteauth
+      - cp -a bundle/. /app/share/enteauth/
+      - install -Dm644 flatpak/io.ente.authlab.desktop /app/share/applications/io.ente.authlab.desktop
+      - install -Dm644 flatpak/io.ente.authlab.metainfo.xml /app/share/metainfo/io.ente.authlab.metainfo.xml
+      - install -Dm644 flatpak/io.ente.authlab.png /app/share/icons/hicolor/256x256/apps/io.ente.authlab.png
+    sources:
+      - type: dir
+        path: ../build/linux/x64/release/bundle
+        dest: bundle
+      - type: dir
+        path: .
+        dest: flatpak

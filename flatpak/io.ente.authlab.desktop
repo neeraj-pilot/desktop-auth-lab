@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Desktop Auth Lab
+Exec=desktop_auth_lab
+Icon=io.ente.authlab
+Type=Application
+Categories=Utility;
+StartupNotify=false
+StartupWMClass=desktop_auth_lab

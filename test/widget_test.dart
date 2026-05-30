@@ -9,9 +9,10 @@ void main() {
     await tester.pumpWidget(const DesktopAuthLabApp());
 
     expect(find.text('Desktop Auth Lab'), findsWidgets);
-    expect(find.text('System Profile'), findsOneWidget);
-    expect(find.text('Auth Tests'), findsOneWidget);
-    expect(find.text('Run Logs'), findsOneWidget);
-    expect(find.byIcon(Icons.fingerprint), findsOneWidget);
+    expect(find.text('Run'), findsOneWidget);
+    expect(find.text('Diagnostics'), findsOneWidget);
+    expect(find.text('Logs'), findsOneWidget);
+    expect(find.text('Check support'), findsOneWidget);
+    expect(find.byIcon(Icons.fingerprint), findsWidgets);
   });
 }

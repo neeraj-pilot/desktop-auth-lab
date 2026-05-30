@@ -1,32 +1,36 @@
 # Desktop Auth Lab
 
-Linux desktop utility for exercising Ente's local-auth assumptions before wiring
-the patched `flutter_local_authentication` package into Ente Auth.
+Desktop utility for testing Ente local authentication behavior before shipping
+changes in Auth.
 
-The app is intentionally narrow:
+The lab uses:
 
-- profile the host session, distro, PAM files, fprintd command availability, and
-  runtime libraries;
-- run `canAuthenticate()`, `authenticate()`, repeated auth, cancel, bad
-  credential, and concurrent-call guard scenarios;
-- write redacted JSONL logs under `$XDG_STATE_HOME/desktop-auth-lab` or
-  `$HOME/.local/state/desktop-auth-lab`;
-- keep lab-only diagnostics in this app, not in the production package API.
+- `local_auth` for the public Flutter API used by Ente;
+- a vendored copy of Ente's `local_auth_linux` Polkit implementation under
+  `packages/local_auth_linux`;
+- the same Polkit action and policy asset used by Ente Auth:
+  `io.ente.auth.unlock`.
 
 ## Local Run
 
 ```sh
-flutter config --enable-linux-desktop
 flutter pub get
-flutter run -d linux
+flutter run -d macos    # macOS
+flutter run -d windows  # Windows
+flutter run -d linux    # Linux
 ```
 
-The app depends on the sibling package checkout:
+On Linux, run:
 
-```yaml
-flutter_local_authentication:
-  path: ../flutter_local_authentication
+```sh
+flutter config --enable-linux-desktop
 ```
+
+## UI
+
+- Run: compact auth state plus support/auth/repeated/concurrent test actions.
+- Diagnostics: host and native probes as redacted JSON.
+- Logs: visible log stream plus the JSONL file path.
 
 ## Non-Secret Diagnostics
 
@@ -34,9 +38,17 @@ flutter_local_authentication:
 dart run tool/host_diagnostics.dart
 ```
 
-## CI
+## CI Artifacts
 
-`.github/workflows/linux.yml` checks out both this lab repo and
-`neeraj-pilot/flutter_local_authentication`, runs package tests, analyzes and
-tests the lab, builds the Linux release bundle, captures non-secret diagnostics,
-and uploads the binary plus logs as artifacts.
+The desktop workflow builds unsigned artifacts:
+
+- `desktop-auth-lab-linux`: Linux release tarball, `ldd`, diagnostics.
+- `desktop-auth-lab-flatpak`: Flatpak bundle plus the Flatpak test kit.
+- `desktop-auth-lab-windows`: Windows release folder.
+- `desktop-auth-lab-macos`: zipped macOS `.app`.
+
+## Flatpak Testing
+
+See [flatpak/README.md](flatpak/README.md). The Flatpak artifact includes the
+manifest, launcher, policy asset, and install guide needed to test the Polkit
+host-policy setup path.

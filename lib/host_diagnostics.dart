@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 const _sensitiveWords = ['password', 'passwd', 'secret', 'token', 'credential'];
+const _policyActionId = 'io.ente.auth.unlock';
+const _policyInstallPath = '/usr/share/polkit-1/actions/io.ente.auth.policy';
 
 Future<Map<String, Object?>> collectHostDiagnostics() async {
-  final sessionId = Platform.environment['XDG_SESSION_ID'];
   final diagnostics = <String, Object?>{
     'timestamp': DateTime.now().toUtc().toIso8601String(),
     'platform': {
@@ -16,31 +17,60 @@ Future<Map<String, Object?>> collectHostDiagnostics() async {
     },
     'environment': _selectedEnvironment(),
     'package': {
-      'name': 'flutter_local_authentication',
-      'source': '../flutter_local_authentication',
-      'linuxBackend': 'pam',
-      'pamServiceOverride':
-          Platform.environment['FLUTTER_LOCAL_AUTHENTICATION_PAM_SERVICE'] ??
-          '',
+      'authPackage': 'local_auth',
+      'linuxImplementation': 'vendored packages/local_auth_linux',
+      'linuxBackend': 'polkit',
+      'polkitActionId': _policyActionId,
     },
+    'distro': await _osRelease(),
+  };
+
+  if (Platform.isLinux) {
+    diagnostics['linux'] = await _linuxDiagnostics();
+  }
+
+  return sanitizeForLog(diagnostics) as Map<String, Object?>;
+}
+
+Future<Map<String, Object?>> _linuxDiagnostics() async {
+  final sessionId = Platform.environment['XDG_SESSION_ID'];
+  final flatpakId = Platform.environment['FLATPAK_ID'];
+  final diagnostics = <String, Object?>{
+    'isFlatpak': flatpakId != null || File('/.flatpak-info').existsSync(),
+    'flatpakId': flatpakId ?? '',
     'files': await _fileProbe({
-      '/etc/os-release': 'distro metadata',
-      '/etc/pam.d/login': 'default PAM service used by the package',
-      '/etc/pam.d/sudo': 'common password PAM service',
-      '/etc/pam.d/polkit-1': 'desktop policy auth service',
-      '/etc/pam.d/gdm-password': 'GNOME password auth service',
-      '/run/dbus/system_bus_socket': 'system D-Bus socket used by fprintd',
+      _policyInstallPath: 'host Polkit policy registration',
+      '/etc/pam.d/polkit-1': 'Polkit PAM service',
+      '/run/dbus/system_bus_socket': 'system D-Bus socket',
+      '/app/share/enteauth/data/flutter_assets/assets/polkit/io.ente.auth.policy':
+          'Flatpak bundled policy asset',
+      'data/flutter_assets/assets/polkit/io.ente.auth.policy':
+          'current-directory bundled policy asset',
     }),
     'commands': await _commandAvailability([
+      'pkaction',
+      'pkcheck',
+      'busctl',
+      'dbus-send',
+      'flatpak',
       'fprintd-list',
       'fprintd-verify',
       'loginctl',
       'systemctl',
-      'dbus-send',
-      'pkcheck',
     ]),
-    'distro': await _osRelease(),
+    'polkitAction': await _commandProbe('sh', [
+      '-lc',
+      'pkaction --action-id $_policyActionId --verbose',
+    ]),
   };
+
+  if (flatpakId != null && flatpakId.isNotEmpty) {
+    diagnostics['flatpakInstall'] = await _commandProbe('flatpak', [
+      'info',
+      '--show-location',
+      flatpakId,
+    ]);
+  }
 
   if (sessionId != null && sessionId.isNotEmpty) {
     diagnostics['loginctlSession'] = await _commandProbe('loginctl', [
@@ -57,7 +87,7 @@ Future<Map<String, Object?>> collectHostDiagnostics() async {
     ]);
   }
 
-  return sanitizeForLog(diagnostics) as Map<String, Object?>;
+  return diagnostics;
 }
 
 dynamic sanitizeForLog(Object? value, [String key = '']) {
@@ -111,6 +141,7 @@ Map<String, String> _selectedEnvironment() {
     'WAYLAND_DISPLAY',
     'DISPLAY',
     'DBUS_SESSION_BUS_ADDRESS',
+    'FLATPAK_ID',
   ];
   return {
     for (final key in keys)

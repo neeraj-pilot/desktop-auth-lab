@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_authentication/flutter_local_authentication.dart';
-import 'package:flutter_local_authentication/localization_model.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:local_auth_linux/local_auth_linux.dart';
 
 import 'host_diagnostics.dart';
 
@@ -30,7 +30,7 @@ class DesktopAuthLabApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF146C63),
+          seedColor: const Color(0xFF1F6F64),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -49,11 +49,13 @@ class AuthLabHome extends StatefulWidget {
 }
 
 class _AuthLabHomeState extends State<AuthLabHome> {
-  final _auth = FlutterLocalAuthentication();
+  final _auth = LocalAuthentication();
   final _logs = <Map<String, Object?>>[];
 
   Map<String, Object?> _hostDiagnostics = {};
   Map<String, Object?> _nativeDiagnostics = {};
+  Map<String, Object?> _status = {'state': 'starting'};
+  LinuxLocalAuthSetupStatus? _linuxSetup;
   bool _busy = false;
   bool _authInFlight = false;
   String _logPath = '';
@@ -66,7 +68,7 @@ class _AuthLabHomeState extends State<AuthLabHome> {
 
   Future<void> _initialize() async {
     await _prepareLogFile();
-    await _refreshDiagnostics();
+    await _refreshAll();
   }
 
   Future<void> _prepareLogFile() async {
@@ -76,32 +78,34 @@ class _AuthLabHomeState extends State<AuthLabHome> {
       ':',
       '-',
     );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _logPath = '${directory.path}/auth-lab-$timestamp.jsonl';
-    });
+    _logPath = '${directory.path}/auth-lab-$timestamp.jsonl';
     await _appendLog('session_started', {
       'logPath': _logPath,
-      'packageRef': '../flutter_local_authentication',
+      'package': 'local_auth',
+      'linuxImplementation': 'packages/local_auth_linux',
     });
   }
 
-  Future<void> _refreshDiagnostics() async {
-    final host = await collectHostDiagnostics();
-    final native = await _collectNativeDiagnostics();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _hostDiagnostics = host;
-      _nativeDiagnostics = native;
-    });
-    await _appendLog('diagnostics_refreshed', {'host': host, 'native': native});
+  Future<void> _refreshAll() async {
+    await _runAction('refresh_status', () async {
+      final host = await collectHostDiagnostics();
+      final native = await _collectNativeDiagnostics();
+      final status = await _collectAuthStatus();
+      if (mounted) {
+        setState(() {
+          _hostDiagnostics = host;
+          _nativeDiagnostics = native;
+          _status = status;
+        });
+      }
+      return {'status': status, 'host': host, 'native': native};
+    }, updateBusy: false);
   }
 
   Future<Map<String, Object?>> _collectNativeDiagnostics() async {
+    if (!Platform.isLinux) {
+      return {'available': false, 'reason': 'linux-only'};
+    }
     try {
       final result = await _diagnosticsChannel.invokeMapMethod<String, Object?>(
         'collectDiagnostics',
@@ -123,11 +127,81 @@ class _AuthLabHomeState extends State<AuthLabHome> {
     }
   }
 
+  Future<Map<String, Object?>> _collectAuthStatus() async {
+    LinuxLocalAuthSetupStatus? linuxSetup;
+    if (Platform.isLinux) {
+      linuxSetup = await _getLinuxSetupStatus();
+    }
+
+    Object? deviceSupported;
+    Object? canCheckBiometrics;
+    Object? biometrics;
+    try {
+      deviceSupported = await _auth.isDeviceSupported();
+    } on Object catch (error) {
+      deviceSupported = error.toString();
+    }
+    try {
+      canCheckBiometrics = await _auth.canCheckBiometrics;
+    } on Object catch (error) {
+      canCheckBiometrics = error.toString();
+    }
+    try {
+      biometrics = (await _auth.getAvailableBiometrics())
+          .map((type) => type.name)
+          .toList();
+    } on Object catch (error) {
+      biometrics = error.toString();
+    }
+
+    if (mounted) {
+      setState(() {
+        _linuxSetup = linuxSetup;
+      });
+    }
+
+    return {
+      'state': 'ready',
+      'platform': Platform.operatingSystem,
+      'deviceSupported': deviceSupported,
+      'canCheckBiometrics': canCheckBiometrics,
+      'availableBiometrics': biometrics,
+      if (linuxSetup != null)
+        'linuxSetup': {
+          'actionId': linuxSetup.actionId,
+          'polkitAvailable': linuxSetup.polkitAvailable,
+          'policyInstalled': linuxSetup.policyInstalled,
+          'setupRequired': linuxSetup.setupRequired,
+          'isFlatpak': linuxSetup.isFlatpak,
+          'policyAssetPath': linuxSetup.policyAssetPath,
+          'errorMessage': linuxSetup.errorMessage,
+        },
+    };
+  }
+
+  Future<LinuxLocalAuthSetupStatus?> _getLinuxSetupStatus() async {
+    try {
+      return await LocalAuthLinux().getSetupStatus();
+    } on PlatformException catch (error) {
+      await _appendLog('linux_setup_status_failed', {
+        'code': error.code,
+        'message': error.message ?? '',
+      });
+      return null;
+    } on Object catch (error) {
+      await _appendLog('linux_setup_status_failed', {
+        'error': error.toString(),
+      });
+      return null;
+    }
+  }
+
   Future<void> _runAction(
     String name,
-    Future<Map<String, Object?>> Function() action,
-  ) async {
-    if (_busy) {
+    Future<Map<String, Object?>> Function() action, {
+    bool updateBusy = true,
+  }) async {
+    if (_busy && updateBusy) {
       await _appendLog('action_skipped', {
         'name': name,
         'reason': 'another action is already running',
@@ -135,9 +209,11 @@ class _AuthLabHomeState extends State<AuthLabHome> {
       return;
     }
 
-    setState(() {
-      _busy = true;
-    });
+    if (updateBusy && mounted) {
+      setState(() {
+        _busy = true;
+      });
+    }
 
     final started = DateTime.now();
     await _appendLog('action_started', {'name': name});
@@ -149,14 +225,19 @@ class _AuthLabHomeState extends State<AuthLabHome> {
         'durationMs': DateTime.now().difference(started).inMilliseconds,
         'details': details,
       });
+    } on LocalAuthException catch (error) {
+      await _appendLog('action_finished', {
+        'name': name,
+        'status': 'local_auth_exception',
+        'durationMs': DateTime.now().difference(started).inMilliseconds,
+        ..._localAuthExceptionDetails(error),
+      });
     } on PlatformException catch (error) {
       await _appendLog('action_finished', {
         'name': name,
         'status': 'platform_exception',
         'durationMs': DateTime.now().difference(started).inMilliseconds,
-        'code': error.code,
-        'message': error.message ?? '',
-        'details': error.details,
+        ..._platformExceptionDetails(error),
       });
     } on Object catch (error) {
       await _appendLog('action_finished', {
@@ -166,7 +247,7 @@ class _AuthLabHomeState extends State<AuthLabHome> {
         'error': error.toString(),
       });
     } finally {
-      if (mounted) {
+      if (updateBusy && mounted) {
         setState(() {
           _busy = false;
         });
@@ -192,30 +273,24 @@ class _AuthLabHomeState extends State<AuthLabHome> {
     if (_logPath.isEmpty) {
       return;
     }
-    final file = File(_logPath);
-    await file.writeAsString('${jsonEncode(entry)}\n', mode: FileMode.append);
-  }
-
-  Future<Map<String, Object?>> _setLocalization() async {
-    _auth.setLocalizationModel(
-      LocalizationModel(
-        promptDialogTitle: 'Desktop Auth Lab',
-        promptDialogReason: 'Authenticate as the current Linux user.',
-        cancelButtonTitle: 'Cancel',
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-    return {'applied': true};
+    await File(
+      _logPath,
+    ).writeAsString('${jsonEncode(entry)}\n', mode: FileMode.append);
   }
 
   Future<bool> _guardedAuthenticate() async {
     if (_authInFlight) {
-      throw StateError('auth_request_already_in_flight');
+      throw const LocalAuthException(
+        code: LocalAuthExceptionCode.authInProgress,
+        description: 'Authentication is already in progress.',
+      );
     }
     _authInFlight = true;
     try {
-      await _setLocalization();
-      return await _auth.authenticate();
+      await _auth.stopAuthentication();
+      return await _auth.authenticate(
+        localizedReason: 'Authenticate to test desktop local auth.',
+      );
     } finally {
       _authInFlight = false;
     }
@@ -234,12 +309,17 @@ class _AuthLabHomeState extends State<AuthLabHome> {
           'attempt': attempt,
           'authenticated': await _guardedAuthenticate(),
         });
+      } on LocalAuthException catch (error) {
+        results.add({
+          'attempt': attempt,
+          'status': 'local_auth_exception',
+          ..._localAuthExceptionDetails(error),
+        });
       } on PlatformException catch (error) {
         results.add({
           'attempt': attempt,
           'status': 'platform_exception',
-          'code': error.code,
-          'message': error.message ?? '',
+          ..._platformExceptionDetails(error),
         });
       } on Object catch (error) {
         results.add({
@@ -276,305 +356,219 @@ class _AuthLabHomeState extends State<AuthLabHome> {
     };
   }
 
-  Future<Map<String, Object?>> _manualBadCredentialAttempt() async {
-    try {
-      final authenticated = await _guardedAuthenticate();
-      return {
-        'authenticated': authenticated,
-        'expectedManualInput': 'enter an incorrect password in the PAM dialog',
-      };
-    } on PlatformException catch (error) {
-      return {
-        'status': 'platform_exception',
-        'code': error.code,
-        'message': error.message ?? '',
-        'expectedCodes': ['authentication_failed', 'authentication_canceled'],
-      };
-    }
+  Future<Map<String, Object?>> _manualFailureAttempt() async {
+    final authenticated = await _guardedAuthenticate();
+    return {
+      'authenticated': authenticated,
+      'expectedManualInput':
+          'cancel the prompt, deny it, or provide a failing system credential',
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Desktop Auth Lab'),
-        actions: [
-          IconButton(
-            onPressed: _busy ? null : () => unawaited(_refreshDiagnostics()),
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh diagnostics',
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Desktop Auth Lab'),
+          actions: [
+            IconButton(
+              onPressed: _busy ? null : () => unawaited(_refreshAll()),
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.play_circle), text: 'Run'),
+              Tab(icon: Icon(Icons.rule), text: 'Diagnostics'),
+              Tab(icon: Icon(Icons.receipt_long), text: 'Logs'),
+            ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 1000;
-            final diagnostics = _DiagnosticsPanel(
-              hostDiagnostics: _hostDiagnostics,
-              nativeDiagnostics: _nativeDiagnostics,
-              logPath: _logPath,
-            );
-            final authPanel = _AuthPanel(
-              busy: _busy,
-              onCanAuthenticate: () => _runAction(
-                'canAuthenticate',
-                () async => {'canAuthenticate': await _auth.canAuthenticate()},
+        ),
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              _RunTab(
+                busy: _busy,
+                status: _status,
+                linuxSetup: _linuxSetup,
+                onCanAuthenticate: () => _runAction(
+                  'can_authenticate',
+                  () async => await _collectAuthStatus(),
+                ),
+                onAuthenticate: () =>
+                    _runAction('authenticate', _authenticateOnce),
+                onCancelTest: () =>
+                    _runAction('cancel_or_deny_test', _manualFailureAttempt),
+                onRepeated: () =>
+                    _runAction('repeated_auth_x2', _authenticateRepeated),
+                onConcurrent: () => _runAction(
+                  'concurrent_call_guard',
+                  _authenticateWithConcurrentGuard,
+                ),
               ),
-              onSetLocalization: () =>
-                  _runAction('setLocalizationModel', _setLocalization),
-              onAuthenticate: () =>
-                  _runAction('authenticate', _authenticateOnce),
-              onCancelTest: () => _runAction('cancel_test', _authenticateOnce),
-              onRepeated: () =>
-                  _runAction('repeated_auth_x2', _authenticateRepeated),
-              onBadCredential: () => _runAction(
-                'manual_bad_credential_test',
-                _manualBadCredentialAttempt,
+              _DiagnosticsTab(
+                hostDiagnostics: _hostDiagnostics,
+                nativeDiagnostics: _nativeDiagnostics,
               ),
-              onConcurrent: () => _runAction(
-                'concurrent_call_guard',
-                _authenticateWithConcurrentGuard,
+              _LogsTab(
+                logPath: _logPath,
+                logs: _logs,
+                onClearLogs: _busy
+                    ? null
+                    : () {
+                        setState(_logs.clear);
+                      },
               ),
-              onClearLogs: () {
-                setState(_logs.clear);
-              },
-            );
-            final logs = _LogsPanel(logs: _logs);
-
-            if (wide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: diagnostics),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: authPanel),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: logs),
-                ],
-              );
-            }
-
-            return ListView(
-              children: [
-                SizedBox(height: 640, child: diagnostics),
-                const Divider(height: 1),
-                SizedBox(height: 420, child: authPanel),
-                const Divider(height: 1),
-                SizedBox(height: 520, child: logs),
-              ],
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _DiagnosticsPanel extends StatelessWidget {
-  const _DiagnosticsPanel({
+class _RunTab extends StatelessWidget {
+  const _RunTab({
+    required this.busy,
+    required this.status,
+    required this.linuxSetup,
+    required this.onCanAuthenticate,
+    required this.onAuthenticate,
+    required this.onCancelTest,
+    required this.onRepeated,
+    required this.onConcurrent,
+  });
+
+  final bool busy;
+  final Map<String, Object?> status;
+  final LinuxLocalAuthSetupStatus? linuxSetup;
+  final VoidCallback onCanAuthenticate;
+  final VoidCallback onAuthenticate;
+  final VoidCallback onCancelTest;
+  final VoidCallback onRepeated;
+  final VoidCallback onConcurrent;
+
+  @override
+  Widget build(BuildContext context) {
+    final setupRequired = linuxSetup?.setupRequired == true;
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _StatusTile(
+              label: 'Platform',
+              value: status['platform']?.toString() ?? Platform.operatingSystem,
+              icon: Icons.desktop_windows,
+            ),
+            _StatusTile(
+              label: 'Device support',
+              value: status['deviceSupported']?.toString() ?? 'pending',
+              icon: Icons.verified_user,
+            ),
+            _StatusTile(
+              label: 'Biometrics',
+              value: status['canCheckBiometrics']?.toString() ?? 'pending',
+              icon: Icons.fingerprint,
+            ),
+            if (linuxSetup != null)
+              _StatusTile(
+                label: 'Polkit policy',
+                value: linuxSetup!.policyInstalled
+                    ? 'installed'
+                    : setupRequired
+                    ? 'setup required'
+                    : 'unavailable',
+                icon: Icons.policy,
+                isWarning: setupRequired,
+              ),
+          ],
+        ),
+        if (setupRequired) ...[
+          const SizedBox(height: 20),
+          _CommandBlock(command: linuxSetup!.policyInstallCommand),
+        ],
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ActionButton(
+              label: 'Check support',
+              icon: Icons.fact_check,
+              onPressed: busy ? null : onCanAuthenticate,
+            ),
+            _ActionButton(
+              label: 'Authenticate',
+              icon: Icons.lock_open,
+              onPressed: busy ? null : onAuthenticate,
+            ),
+            _ActionButton(
+              label: 'Cancel / deny',
+              icon: Icons.cancel,
+              onPressed: busy ? null : onCancelTest,
+            ),
+            _ActionButton(
+              label: 'Repeated x2',
+              icon: Icons.repeat,
+              onPressed: busy ? null : onRepeated,
+            ),
+            _ActionButton(
+              label: 'Concurrent guard',
+              icon: Icons.merge_type,
+              onPressed: busy ? null : onConcurrent,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        LinearProgressIndicator(value: busy ? null : 0),
+      ],
+    );
+  }
+}
+
+class _DiagnosticsTab extends StatelessWidget {
+  const _DiagnosticsTab({
     required this.hostDiagnostics,
     required this.nativeDiagnostics,
-    required this.logPath,
   });
 
   final Map<String, Object?> hostDiagnostics;
   final Map<String, Object?> nativeDiagnostics;
-  final String logPath;
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'System Profile',
-      icon: Icons.computer,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _ValueBlock(
-            label: 'JSONL log file',
-            value: logPath.isEmpty ? 'pending' : logPath,
-          ),
-          _ValueBlock(
-            label: 'Host diagnostics',
-            value: compactJson(hostDiagnostics),
-          ),
-          _ValueBlock(
-            label: 'Native diagnostics',
-            value: compactJson(nativeDiagnostics),
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        _ValueBlock(
+          label: 'Host diagnostics',
+          value: compactJson(hostDiagnostics),
+        ),
+        _ValueBlock(
+          label: 'Native diagnostics',
+          value: compactJson(nativeDiagnostics),
+        ),
+      ],
     );
   }
 }
 
-class _AuthPanel extends StatelessWidget {
-  const _AuthPanel({
-    required this.busy,
-    required this.onCanAuthenticate,
-    required this.onSetLocalization,
-    required this.onAuthenticate,
-    required this.onCancelTest,
-    required this.onRepeated,
-    required this.onBadCredential,
-    required this.onConcurrent,
+class _LogsTab extends StatelessWidget {
+  const _LogsTab({
+    required this.logPath,
+    required this.logs,
     required this.onClearLogs,
   });
 
-  final bool busy;
-  final VoidCallback onCanAuthenticate;
-  final VoidCallback onSetLocalization;
-  final VoidCallback onAuthenticate;
-  final VoidCallback onCancelTest;
-  final VoidCallback onRepeated;
-  final VoidCallback onBadCredential;
-  final VoidCallback onConcurrent;
-  final VoidCallback onClearLogs;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Auth Tests',
-      icon: Icons.fingerprint,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _ActionButton(
-                label: 'Can authenticate',
-                icon: Icons.fact_check,
-                onPressed: busy ? null : onCanAuthenticate,
-              ),
-              _ActionButton(
-                label: 'Set prompt text',
-                icon: Icons.translate,
-                onPressed: busy ? null : onSetLocalization,
-              ),
-              _ActionButton(
-                label: 'Authenticate',
-                icon: Icons.lock_open,
-                onPressed: busy ? null : onAuthenticate,
-              ),
-              _ActionButton(
-                label: 'Cancel test',
-                icon: Icons.cancel,
-                onPressed: busy ? null : onCancelTest,
-              ),
-              _ActionButton(
-                label: 'Repeated x2',
-                icon: Icons.repeat,
-                onPressed: busy ? null : onRepeated,
-              ),
-              _ActionButton(
-                label: 'Bad credential',
-                icon: Icons.warning_amber,
-                onPressed: busy ? null : onBadCredential,
-              ),
-              _ActionButton(
-                label: 'Concurrent guard',
-                icon: Icons.merge_type,
-                onPressed: busy ? null : onConcurrent,
-              ),
-              _ActionButton(
-                label: 'Clear log view',
-                icon: Icons.delete_sweep,
-                onPressed: busy ? null : onClearLogs,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LinearProgressIndicator(value: busy ? null : 0),
-          const SizedBox(height: 16),
-          const _ValueBlock(
-            label: 'Manual scenarios',
-            value:
-                'Use Authenticate, Cancel test, and Bad credential with the PAM dialog. '
-                'The bad credential path depends on entering an incorrect password manually; '
-                'the lab never stores or injects secrets.',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LogsPanel extends StatelessWidget {
-  const _LogsPanel({required this.logs});
-
+  final String logPath;
   final List<Map<String, Object?>> logs;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Run Logs',
-      icon: Icons.receipt_long,
-      child: logs.isEmpty
-          ? const Center(child: Text('No runs yet'))
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemBuilder: (context, index) {
-                final entry = logs[index];
-                final status =
-                    entry['status']?.toString() ??
-                    entry['event']?.toString() ??
-                    '';
-                final color =
-                    status.contains('error') || status.contains('exception')
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.primary;
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.circle, color: color, size: 10),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                entry['event']?.toString() ?? 'event',
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ),
-                            Text(
-                              entry['time']?.toString() ?? '',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          compactJson(entry),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontFamily: 'monospace'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemCount: logs.length,
-            ),
-    );
-  }
-}
-
-class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.icon, required this.child});
-
-  final String title;
-  final IconData icon;
-  final Widget child;
+  final VoidCallback? onClearLogs;
 
   @override
   Widget build(BuildContext context) {
@@ -582,18 +576,143 @@ class _Panel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              Expanded(
+                child: SelectableText(
+                  logPath.isEmpty ? 'Log file pending' : logPath,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onClearLogs,
+                icon: const Icon(Icons.delete_sweep),
+                label: const Text('Clear view'),
+              ),
             ],
           ),
         ),
-        Expanded(child: child),
+        const Divider(height: 1),
+        Expanded(
+          child: logs.isEmpty
+              ? const Center(child: Text('No runs yet'))
+              : ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemBuilder: (context, index) {
+                    final entry = logs[index];
+                    final status =
+                        entry['status']?.toString() ??
+                        entry['event']?.toString() ??
+                        '';
+                    final color =
+                        status.contains('error') || status.contains('exception')
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.primary;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.circle, color: color, size: 10),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    entry['event']?.toString() ?? 'event',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                ),
+                                Text(
+                                  entry['time']?.toString() ?? '',
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              compactJson(entry),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontFamily: 'monospace'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemCount: logs.length,
+                ),
+        ),
       ],
     );
+  }
+}
+
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.isWarning = false,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool isWarning;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 220,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isWarning
+              ? colorScheme.errorContainer.withValues(alpha: 0.5)
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 22),
+              const SizedBox(height: 12),
+              Text(label, style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Text(value, style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommandBlock extends StatelessWidget {
+  const _CommandBlock({required this.command});
+
+  final String command;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ValueBlock(label: 'Linux setup command', value: command);
   }
 }
 
@@ -627,12 +746,12 @@ class _ValueBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           DecoratedBox(
             decoration: BoxDecoration(
               color: Theme.of(
@@ -641,7 +760,7 @@ class _ValueBlock extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: SelectableText(
                 value,
                 style: Theme.of(
@@ -654,6 +773,73 @@ class _ValueBlock extends StatelessWidget {
       ),
     );
   }
+}
+
+Map<String, Object?> _localAuthExceptionDetails(LocalAuthException error) {
+  return {
+    'code': error.code.name,
+    'message': error.description ?? '',
+    'issue': _localAuthIssue(error),
+  };
+}
+
+Map<String, Object?> _platformExceptionDetails(PlatformException error) {
+  return {
+    'code': error.code,
+    'message': error.message ?? '',
+    'details': error.details,
+    'issue': _platformIssue(error),
+  };
+}
+
+String? _localAuthIssue(LocalAuthException error) {
+  if (Platform.isLinux &&
+      error.code == LocalAuthExceptionCode.noCredentialsSet &&
+      (error.description?.contains('Polkit policy') ?? false)) {
+    return 'linux_setup_required';
+  }
+  if (!Platform.isWindows) {
+    return null;
+  }
+  return _windowsIssue(error.code.name, error.description);
+}
+
+String? _platformIssue(PlatformException error) {
+  if (!Platform.isWindows) {
+    return null;
+  }
+  return _windowsIssue(error.code, error.message);
+}
+
+String? _windowsIssue(String code, String? description) {
+  final normalizedCode = code.toLowerCase();
+  final normalizedDescription = description?.toLowerCase() ?? '';
+  if (normalizedCode.contains('notenrolled') ||
+      normalizedCode.contains('nocredentialsset') ||
+      normalizedCode.contains('nobiometricsenrolled')) {
+    return 'not_configured';
+  }
+  if (normalizedCode.contains('nohardware') ||
+      normalizedCode.contains('nobiometrichardware')) {
+    return 'no_hardware';
+  }
+  if (normalizedCode.contains('devicebusy') ||
+      normalizedCode.contains('authinprogress') ||
+      normalizedCode.contains('temporarilyunavailable')) {
+    return 'busy';
+  }
+  if (normalizedCode.contains('disabledbypolicy') ||
+      normalizedDescription.contains('group policy')) {
+    return 'disabled_by_policy';
+  }
+  if (normalizedCode.contains('notavailable') ||
+      normalizedCode.contains('unavailable') ||
+      normalizedCode.contains('deviceerror') ||
+      normalizedCode.contains('uiunavailable') ||
+      normalizedCode.contains('unknownerror')) {
+    return 'unavailable';
+  }
+  return null;
 }
 
 String _stateDirectory() {

@@ -6,10 +6,10 @@
 
 #include "generated_plugin_registrant.h"
 
-#include <flutter_local_authentication/flutter_local_authentication_plugin.h>
+#include <local_auth_linux/local_auth_linux_plugin.h>
 
 void fl_register_plugins(FlPluginRegistry* registry) {
-  g_autoptr(FlPluginRegistrar) flutter_local_authentication_registrar =
-      fl_plugin_registry_get_registrar_for_plugin(registry, "FlutterLocalAuthenticationPlugin");
-  flutter_local_authentication_plugin_register_with_registrar(flutter_local_authentication_registrar);
+  g_autoptr(FlPluginRegistrar) local_auth_linux_registrar =
+      fl_plugin_registry_get_registrar_for_plugin(registry, "LocalAuthLinuxPlugin");
+  local_auth_linux_plugin_register_with_registrar(local_auth_linux_registrar);
 }

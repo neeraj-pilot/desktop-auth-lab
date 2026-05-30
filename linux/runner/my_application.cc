@@ -60,9 +60,12 @@ static FlMethodResponse* collect_diagnostics_response() {
   map_set_bool(result, "available", TRUE);
   map_set_string(result, "user", g_get_user_name());
   map_set_string(result, "home", g_get_home_dir());
-  map_set_string(result, "pamServiceDefault", "login");
-  map_set_string(result, "pamServiceOverride",
-                 g_getenv("FLUTTER_LOCAL_AUTHENTICATION_PAM_SERVICE"));
+  map_set_string(result, "linuxBackend", "polkit");
+  map_set_string(result, "polkitActionId", "io.ente.auth.unlock");
+  map_set_bool(result, "isFlatpak",
+               g_getenv("FLATPAK_ID") != nullptr ||
+                   g_file_test("/.flatpak-info", G_FILE_TEST_EXISTS));
+  map_set_string(result, "flatpakId", g_getenv("FLATPAK_ID"));
 
   struct utsname uts;
   if (uname(&uts) == 0) {
@@ -75,24 +78,32 @@ static FlMethodResponse* collect_diagnostics_response() {
   }
 
   g_autoptr(FlValue) files = fl_value_new_map();
-  add_file_probe(files, "/etc/pam.d/login", "default PAM service");
-  add_file_probe(files, "/etc/pam.d/sudo", "password PAM service");
   add_file_probe(files, "/etc/pam.d/polkit-1", "desktop policy auth service");
+  add_file_probe(files, "/usr/share/polkit-1/actions/io.ente.auth.policy",
+                 "host Polkit policy registration");
+  add_file_probe(files,
+                 "/app/share/enteauth/data/flutter_assets/assets/polkit/"
+                 "io.ente.auth.policy",
+                 "Flatpak bundled policy asset");
   add_file_probe(files, "/run/dbus/system_bus_socket", "system D-Bus socket");
   fl_value_set_take(result, fl_value_new_string("files"), fl_value_ref(files));
 
   g_autoptr(FlValue) commands = fl_value_new_map();
-  add_command_probe(commands, "fprintd-list");
-  add_command_probe(commands, "fprintd-verify");
+  add_command_probe(commands, "pkaction");
+  add_command_probe(commands, "pkcheck");
+  add_command_probe(commands, "busctl");
   add_command_probe(commands, "loginctl");
   add_command_probe(commands, "systemctl");
   add_command_probe(commands, "dbus-send");
+  add_command_probe(commands, "fprintd-list");
+  add_command_probe(commands, "fprintd-verify");
   fl_value_set_take(result, fl_value_new_string("commands"), fl_value_ref(commands));
 
   g_autoptr(FlValue) libraries = fl_value_new_map();
-  add_library_probe(libraries, "libpam.so.0");
-  add_library_probe(libraries, "libfprint-2.so.2");
+  add_library_probe(libraries, "libgio-2.0.so.0");
+  add_library_probe(libraries, "libglib-2.0.so.0");
   add_library_probe(libraries, "libsecret-1.so.0");
+  add_library_probe(libraries, "libfprint-2.so.2");
   fl_value_set_take(result, fl_value_new_string("libraries"), fl_value_ref(libraries));
 
   return FL_METHOD_RESPONSE(fl_method_success_response_new(result));

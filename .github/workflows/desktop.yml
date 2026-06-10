@@ -111,13 +111,13 @@ jobs:
           flatpak build-bundle artifacts/flatpak-repo artifacts/desktop-auth-lab.flatpak io.ente.authlab
           mkdir -p artifacts/flatpak-test-kit
           cp -R flatpak/. artifacts/flatpak-test-kit/
-          cp assets/polkit/io.ente.auth.policy artifacts/flatpak-test-kit/io.ente.auth.policy
+          cp assets/polkit/io.ente.authlab.policy artifacts/flatpak-test-kit/io.ente.authlab.policy
           mkdir -p artifacts/desktop-auth-lab-flatpak-test
           cp artifacts/desktop-auth-lab.flatpak artifacts/desktop-auth-lab-flatpak-test/
           cp flatpak/README.md artifacts/desktop-auth-lab-flatpak-test/README.md
           cp flatpak/install-polkit-policy.sh artifacts/desktop-auth-lab-flatpak-test/
           cp flatpak/uninstall-polkit-policy.sh artifacts/desktop-auth-lab-flatpak-test/
-          cp assets/polkit/io.ente.auth.policy artifacts/desktop-auth-lab-flatpak-test/
+          cp assets/polkit/io.ente.authlab.policy artifacts/desktop-auth-lab-flatpak-test/
           cp flatpak/io.ente.authlab.yml artifacts/desktop-auth-lab-flatpak-test/
           cp flatpak/io.ente.authlab.desktop artifacts/desktop-auth-lab-flatpak-test/
           cp flatpak/io.ente.authlab.metainfo.xml artifacts/desktop-auth-lab-flatpak-test/

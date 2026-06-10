@@ -14,13 +14,13 @@ static constexpr const char* kPolkitAuthorityPath =
     "/org/freedesktop/PolicyKit1/Authority";
 static constexpr const char* kPolkitAuthorityInterface =
     "org.freedesktop.PolicyKit1.Authority";
-static constexpr const char* kPolkitActionId = "io.ente.auth.unlock";
+static constexpr const char* kPolkitActionId = "io.ente.authlab.unlock";
 static constexpr const char* kPolicyAssetPath =
-    "/usr/share/enteauth/data/flutter_assets/assets/polkit/io.ente.auth.policy";
+    "/usr/share/desktop-auth-lab/data/flutter_assets/assets/polkit/io.ente.authlab.policy";
 static constexpr const char* kFlatpakPolicyAssetPath =
-    "/app/share/enteauth/data/flutter_assets/assets/polkit/io.ente.auth.policy";
+    "/app/share/desktop-auth-lab/data/flutter_assets/assets/polkit/io.ente.authlab.policy";
 static constexpr const char* kBundledPolicyAssetRelativePath =
-    "data/flutter_assets/assets/polkit/io.ente.auth.policy";
+    "data/flutter_assets/assets/polkit/io.ente.authlab.policy";
 
 struct _LocalAuthLinuxPlugin {
   GObject parent_instance;

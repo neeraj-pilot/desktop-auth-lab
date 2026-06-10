@@ -1,9 +1,9 @@
 # Flatpak Test Guide
 
-This lab uses the same Polkit action as Ente Auth:
+This lab uses a lab-scoped Polkit action modeled after Ente Auth:
 
 ```text
-io.ente.auth.unlock
+io.ente.authlab.unlock
 ```
 
 The Flatpak can talk to `org.freedesktop.PolicyKit1`, but the Polkit policy
@@ -21,7 +21,7 @@ Then install the Flatpak:
 
 ```sh
 curl -L -o desktop-auth-lab-flatpak-test.tar.gz \
-  https://github.com/neeraj-pilot/desktop-auth-lab/releases/download/v0.2.2/desktop-auth-lab-flatpak-test.tar.gz
+  https://github.com/neeraj-pilot/desktop-auth-lab/releases/download/v0.2.3/desktop-auth-lab-flatpak-test.tar.gz
 
 tar -xzf desktop-auth-lab-flatpak-test.tar.gz
 cd desktop-auth-lab-flatpak-test
@@ -36,21 +36,21 @@ directly from GitHub:
 tmp="$(mktemp)"
 
 curl -fsSL \
-  https://raw.githubusercontent.com/neeraj-pilot/desktop-auth-lab/v0.2.2/assets/polkit/io.ente.auth.policy \
+  https://raw.githubusercontent.com/neeraj-pilot/desktop-auth-lab/v0.2.3/assets/polkit/io.ente.authlab.policy \
   -o "$tmp"
 
 sudo install -D -o root -g root -m 0644 \
   "$tmp" \
-  /usr/share/polkit-1/actions/io.ente.auth.policy
+  /usr/share/polkit-1/actions/io.ente.authlab.policy
 
 rm -f "$tmp"
 
 if command -v chcon >/dev/null 2>&1; then
   sudo chcon system_u:object_r:usr_t:s0 \
-    /usr/share/polkit-1/actions/io.ente.auth.policy || true
+    /usr/share/polkit-1/actions/io.ente.authlab.policy || true
 fi
 
-pkaction --action-id io.ente.auth.unlock --verbose
+pkaction --action-id io.ente.authlab.unlock --verbose
 ```
 
 Run the lab again:
@@ -80,14 +80,14 @@ through `common-auth`; otherwise `/etc/pam.d/polkit-1` may remain password-only.
 
 ## Install Policy Manually
 
-If you already have `io.ente.auth.policy` locally, copy it to the host policy
+If you already have `io.ente.authlab.policy` locally, copy it to the host policy
 directory, set root ownership, and apply an SELinux context when `chcon` is
 available:
 
 ```sh
-sudo install -D -o root -g root -m 0644 io.ente.auth.policy /usr/share/polkit-1/actions/io.ente.auth.policy
-if command -v chcon >/dev/null 2>&1; then sudo chcon system_u:object_r:usr_t:s0 /usr/share/polkit-1/actions/io.ente.auth.policy || true; fi
-pkaction --action-id io.ente.auth.unlock --verbose
+sudo install -D -o root -g root -m 0644 io.ente.authlab.policy /usr/share/polkit-1/actions/io.ente.authlab.policy
+if command -v chcon >/dev/null 2>&1; then sudo chcon system_u:object_r:usr_t:s0 /usr/share/polkit-1/actions/io.ente.authlab.policy || true; fi
+pkaction --action-id io.ente.authlab.unlock --verbose
 ```
 
 The test archive also includes `install-polkit-policy.sh`, but the direct GitHub
@@ -110,6 +110,6 @@ flatpak build-bundle build/flatpak-repo build/desktop-auth-lab.flatpak io.ente.a
 Only remove the host policy if you installed it solely for this lab:
 
 ```sh
-sudo rm -f /usr/share/polkit-1/actions/io.ente.auth.policy
+sudo rm -f /usr/share/polkit-1/actions/io.ente.authlab.policy
 flatpak uninstall --user io.ente.authlab
 ```

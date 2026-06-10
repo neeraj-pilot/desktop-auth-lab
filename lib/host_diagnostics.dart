@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 const _sensitiveWords = ['password', 'passwd', 'secret', 'token', 'credential'];
-const _policyActionId = 'io.ente.auth.unlock';
-const _policyInstallPath = '/usr/share/polkit-1/actions/io.ente.auth.policy';
+const _policyActionId = 'io.ente.authlab.unlock';
+const _policyInstallPath = '/usr/share/polkit-1/actions/io.ente.authlab.policy';
 
 Future<Map<String, Object?>> collectHostDiagnostics() async {
   final diagnostics = <String, Object?>{
@@ -42,9 +42,9 @@ Future<Map<String, Object?>> _linuxDiagnostics() async {
       _policyInstallPath: 'host Polkit policy registration',
       '/etc/pam.d/polkit-1': 'Polkit PAM service',
       '/run/dbus/system_bus_socket': 'system D-Bus socket',
-      '/app/share/enteauth/data/flutter_assets/assets/polkit/io.ente.auth.policy':
+      '/app/share/desktop-auth-lab/data/flutter_assets/assets/polkit/io.ente.authlab.policy':
           'Flatpak bundled policy asset',
-      'data/flutter_assets/assets/polkit/io.ente.auth.policy':
+      'data/flutter_assets/assets/polkit/io.ente.authlab.policy':
           'current-directory bundled policy asset',
     }),
     'commands': await _commandAvailability([

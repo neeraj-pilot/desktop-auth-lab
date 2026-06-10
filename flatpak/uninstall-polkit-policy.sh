@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-target="/usr/share/polkit-1/actions/io.ente.auth.policy"
+target="/usr/share/polkit-1/actions/io.ente.authlab.policy"
 
 run_as_root() {
   if [ "$(id -u)" -eq 0 ]; then

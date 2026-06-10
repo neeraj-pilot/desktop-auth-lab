@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-action_id="io.ente.auth.unlock"
-policy_name="io.ente.auth.policy"
+action_id="io.ente.authlab.unlock"
+policy_name="io.ente.authlab.policy"
 target="/usr/share/polkit-1/actions/$policy_name"
 
 script_dir=$(
@@ -19,7 +19,7 @@ if [ -z "$source_path" ]; then
   app_id="${FLATPAK_ID:-io.ente.authlab}"
   if command -v flatpak >/dev/null 2>&1; then
     install_dir="$(flatpak info --show-location "$app_id" 2>/dev/null || true)"
-    candidate="$install_dir/files/share/enteauth/data/flutter_assets/assets/polkit/$policy_name"
+    candidate="$install_dir/files/share/desktop-auth-lab/data/flutter_assets/assets/polkit/$policy_name"
     if [ -n "$install_dir" ] && [ -f "$candidate" ]; then
       source_path="$candidate"
     fi

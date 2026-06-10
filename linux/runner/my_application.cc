@@ -61,7 +61,7 @@ static FlMethodResponse* collect_diagnostics_response() {
   map_set_string(result, "user", g_get_user_name());
   map_set_string(result, "home", g_get_home_dir());
   map_set_string(result, "linuxBackend", "polkit");
-  map_set_string(result, "polkitActionId", "io.ente.auth.unlock");
+  map_set_string(result, "polkitActionId", "io.ente.authlab.unlock");
   map_set_bool(result, "isFlatpak",
                g_getenv("FLATPAK_ID") != nullptr ||
                    g_file_test("/.flatpak-info", G_FILE_TEST_EXISTS));
@@ -79,11 +79,11 @@ static FlMethodResponse* collect_diagnostics_response() {
 
   g_autoptr(FlValue) files = fl_value_new_map();
   add_file_probe(files, "/etc/pam.d/polkit-1", "desktop policy auth service");
-  add_file_probe(files, "/usr/share/polkit-1/actions/io.ente.auth.policy",
+  add_file_probe(files, "/usr/share/polkit-1/actions/io.ente.authlab.policy",
                  "host Polkit policy registration");
   add_file_probe(files,
-                 "/app/share/enteauth/data/flutter_assets/assets/polkit/"
-                 "io.ente.auth.policy",
+                 "/app/share/desktop-auth-lab/data/flutter_assets/assets/polkit/"
+                 "io.ente.authlab.policy",
                  "Flatpak bundled policy asset");
   add_file_probe(files, "/run/dbus/system_bus_socket", "system D-Bus socket");
   fl_value_set_take(result, fl_value_new_string("files"), fl_value_ref(files));

@@ -23,7 +23,7 @@ void main() {
             'isDeviceSupported' => true,
             'getSetupStatus' => <String, Object?>{
               'actionId': linuxLocalAuthPolkitActionId,
-              'policyAssetPath': '/usr/share/enteauth/policy',
+              'policyAssetPath': '/usr/share/desktop-auth-lab/policy',
               'polkitAvailable': true,
               'policyInstalled': true,
               'isFlatpak': false,
@@ -152,7 +152,7 @@ void main() {
     final status = await localAuth.getSetupStatus();
 
     expect(status.actionId, linuxLocalAuthPolkitActionId);
-    expect(status.policyAssetPath, '/usr/share/enteauth/policy');
+    expect(status.policyAssetPath, '/usr/share/desktop-auth-lab/policy');
     expect(status.polkitAvailable, isTrue);
     expect(status.policyInstalled, isTrue);
     expect(status.isFlatpak, isFalse);

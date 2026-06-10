@@ -6,9 +6,9 @@
   <vendor>Ente</vendor>
   <vendor_url>https://ente.io</vendor_url>
 
-  <action id="io.ente.auth.unlock">
-    <description>Unlock Ente Auth</description>
-    <message>Authenticate to unlock Ente Auth.</message>
+  <action id="io.ente.authlab.unlock">
+    <description>Unlock Desktop Auth Lab</description>
+    <message>Authenticate to unlock Desktop Auth Lab.</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>

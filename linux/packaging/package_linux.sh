@@ -8,11 +8,11 @@ cd "$ROOT_DIR"
 PACKAGE_NAME="desktop-auth-lab"
 APP_ID="io.ente.authlab"
 DISPLAY_NAME="Desktop Auth Lab"
-INSTALL_DIR="/usr/share/enteauth"
+INSTALL_DIR="/usr/share/desktop-auth-lab"
 BUNDLE_DIR="build/linux/x64/release/bundle"
 ARTIFACT_DIR="artifacts"
 DIST_DIR="dist"
-POLICY_ASSET="assets/polkit/io.ente.auth.policy"
+POLICY_ASSET="assets/polkit/io.ente.authlab.policy"
 DESKTOP_FILE="linux/packaging/io.ente.authlab.desktop"
 METAINFO_FILE="flatpak/io.ente.authlab.metainfo.xml"
 ICON_FILE="flatpak/io.ente.authlab.png"
@@ -35,7 +35,7 @@ write_native_wrapper() {
   cat >"$target" <<'SH'
 #!/bin/sh
 set -eu
-cd /usr/share/enteauth
+cd /usr/share/desktop-auth-lab
 exec ./desktop_auth_lab "$@"
 SH
   chmod 0755 "$target"
@@ -56,7 +56,7 @@ copy_native_payload() {
   install -m 0644 "$DESKTOP_FILE" "$root/usr/share/applications/$APP_ID.desktop"
   install -m 0644 "$METAINFO_FILE" "$root/usr/share/metainfo/$APP_ID.metainfo.xml"
   install -m 0644 "$ICON_FILE" "$root/usr/share/icons/hicolor/256x256/apps/$APP_ID.png"
-  install -m 0644 "$POLICY_ASSET" "$root/usr/share/polkit-1/actions/io.ente.auth.policy"
+  install -m 0644 "$POLICY_ASSET" "$root/usr/share/polkit-1/actions/io.ente.authlab.policy"
 }
 
 build_appimage() {

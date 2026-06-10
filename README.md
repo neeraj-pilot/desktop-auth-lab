@@ -8,8 +8,8 @@ The lab uses:
 - `local_auth` for the public Flutter API used by Ente;
 - a vendored copy of Ente's `local_auth_linux` Polkit implementation under
   `packages/local_auth_linux`;
-- the same Polkit action and policy asset used by Ente Auth:
-  `io.ente.auth.unlock`.
+- a lab-scoped Polkit action and policy asset modeled after Ente Auth:
+  `io.ente.authlab.unlock`.
 
 ## Local Run
 

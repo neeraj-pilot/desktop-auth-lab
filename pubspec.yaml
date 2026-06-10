@@ -1,7 +1,7 @@
 name: desktop_auth_lab
 description: Desktop utility for testing Ente local authentication assumptions.
 publish_to: "none"
-version: 0.2.2+1
+version: 0.2.3+1
 
 environment:
   sdk: ^3.10.9
@@ -21,4 +21,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/polkit/io.ente.auth.policy
+    - assets/polkit/io.ente.authlab.policy
